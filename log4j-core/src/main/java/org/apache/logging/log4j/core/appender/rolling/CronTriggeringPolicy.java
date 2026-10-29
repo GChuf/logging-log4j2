@@ -167,10 +167,7 @@ public final class CronTriggeringPolicy extends AbstractTriggeringPolicy {
         final Date prevFileTime = cronExpression.getPrevFireTime(rollTime);
         LOGGER.debug(
                 "Rolling over {} ({}): rollTime={}, prevFileTime=prevFire(rollTime)={} (used for %d in the archive name)",
-                manager.getFileName(),
-                future != null ? "scheduled" : "on startup",
-                rollTime,
-                prevFileTime);
+                manager.getFileName(), future != null ? "scheduled" : "on startup", rollTime, prevFileTime);
         manager.rollover(prevFileTime, rollTime);
         if (future != null) {
             lastRollDate = future.getFireTime();
