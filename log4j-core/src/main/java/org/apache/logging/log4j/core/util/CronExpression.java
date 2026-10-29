@@ -1595,23 +1595,12 @@ public final class CronExpression {
     }
 
     public Date getPrevFireTime(final Date targetDate) {
-
-        long targetDateLong = targetDate.getTime();
-        Date timeBefore;
-        Date now = new Date();
-
         // Cron expressions have second precision. If the input has a millisecond fraction,
         // include fire times at that same wall-clock second by shifting into the next second.
         if (targetDate.getTime() % 1000 != 0) {
-            targetDateLong += 999;
-            timeBefore = getTimeBefore(new Date(targetDateLong));
-        } else {
-            timeBefore = getTimeBefore(targetDate);
+            return getTimeBefore(new Date(targetDate.getTime() + 999));
         }
-
-
-
-        return timeBefore;
+        return getTimeBefore(targetDate);
     }
 
     private long findMinIncrement() {
