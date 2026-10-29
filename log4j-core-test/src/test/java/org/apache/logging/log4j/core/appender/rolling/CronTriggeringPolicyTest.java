@@ -236,4 +236,23 @@ class CronTriggeringPolicyTest {
             policy.stop(1, TimeUnit.SECONDS);
         }
     }
+
+    /**
+     * A file created by a scheduled rollover of a previous period has a creation time equal to that period's fire
+     * time. It must be archived under that period, not under the current one nor the one before it.
+     */
+    @Test
+    void testEvaluateOnStartupArchivesFileCreatedAtPreviousFireTimeUnderItsOwnPeriod() throws Exception {
+        final CronExpression cronExpression = new CronExpression(CRON_EXPRESSION);
+        final Date periodStart = cronExpression.getPrevFireTime(new Date());
+        final Date previousPeriodStart = cronExpression.getPrevFireTime(periodStart);
+        final RollingFileManager manager = mockManager(previousPeriodStart.getTime());
+        final CronTriggeringPolicy policy = createPolicy();
+        try {
+            policy.initialize(manager);
+            verify(manager).rollover(eq(previousPeriodStart), any(Date.class));
+        } finally {
+            policy.stop(1, TimeUnit.SECONDS);
+        }
+    }
 }
