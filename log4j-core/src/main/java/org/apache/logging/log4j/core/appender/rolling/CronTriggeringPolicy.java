@@ -71,10 +71,23 @@ public final class CronTriggeringPolicy extends AbstractTriggeringPolicy {
         LOGGER.debug("LastRollForFile {}, LastRegularRole {}", lastRollForFile, lastRegularRoll);
         aManager.getPatternProcessor().setPrevFileTime(lastRegularRoll.getTime());
         aManager.getPatternProcessor().setTimeBased(true);
-        if (checkOnStartup
+        final boolean rolloverOnStartup = checkOnStartup
                 && lastRollForFile != null
                 && lastRegularRoll != null
-                && lastRollForFile.before(lastRegularRoll)) {
+                && lastRollForFile.before(lastRegularRoll);
+        LOGGER.debug(
+                "Evaluating rollover on startup for {}: evaluateOnStartup={}, now={}, fileTime={} ({}), "
+                        + "lastRollForFile=prevFire(fileTime)={}, lastRegularRoll=prevFire(now)={}, "
+                        + "lastRollForFile.before(lastRegularRoll)={}",
+                aManager.getFileName(),
+                checkOnStartup,
+                now,
+                fileTime,
+                fileTime > 0 ? new Date(fileTime) : null,
+                lastRollForFile,
+                lastRegularRoll,
+                rolloverOnStartup);
+        if (rolloverOnStartup) {
             lastRollDate = lastRollForFile;
             rollover();
         }
@@ -151,7 +164,14 @@ public final class CronTriggeringPolicy extends AbstractTriggeringPolicy {
     private void rollover() {
         // If possible, use the time rollover was supposed to occur, not the actual time.
         final Date rollTime = future != null ? future.getFireTime() : new Date();
-        manager.rollover(cronExpression.getPrevFireTime(rollTime), rollTime);
+        final Date prevFileTime = cronExpression.getPrevFireTime(rollTime);
+        LOGGER.debug(
+                "Rolling over {} ({}): rollTime={}, prevFileTime=prevFire(rollTime)={} (used for %d in the archive name)",
+                manager.getFileName(),
+                future != null ? "scheduled" : "on startup",
+                rollTime,
+                prevFileTime);
+        manager.rollover(prevFileTime, rollTime);
         if (future != null) {
             lastRollDate = future.getFireTime();
         }

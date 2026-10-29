@@ -120,6 +120,13 @@ public class FileRenameAction extends AbstractAction {
                     return false;
                 }
             }
+            if (destination.exists()) {
+                LOGGER.debug(
+                        "Destination file {} already exists ({} bytes) and will be replaced by {}",
+                        destination.getAbsolutePath(),
+                        destination.length(),
+                        source.getAbsolutePath());
+            }
             try {
                 try {
                     return moveFile(Paths.get(source.getAbsolutePath()), Paths.get(destination.getAbsolutePath()));
