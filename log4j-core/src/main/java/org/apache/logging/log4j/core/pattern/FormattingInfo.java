@@ -185,12 +185,12 @@ public final class FormattingInfo {
             }
         } else if (rawLength < minLength) {
             if (leftAlign) {
-                final int fieldEnd = buffer.length();
-                buffer.setLength(fieldStart + minLength);
-
-                for (int i = fieldEnd; i < buffer.length(); i++) {
-                    buffer.setCharAt(i, ' ');
+                // Append the padding directly instead of extending the buffer with NULs and overwriting them
+                int padLength = minLength - rawLength;
+                for (; padLength > SPACES.length; padLength -= SPACES.length) {
+                    buffer.append(SPACES);
                 }
+                buffer.append(SPACES, 0, padLength);
             } else {
                 int padLength = minLength - rawLength;
 
