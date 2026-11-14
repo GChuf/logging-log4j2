@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.util.Clock;
 import org.apache.logging.log4j.core.util.NanoClock;
 import org.apache.logging.log4j.core.util.TraceContextProviderService;
 import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.spi.TraceContextProvider;
 import org.apache.logging.log4j.util.ReadOnlyStringMap;
 import org.apache.logging.log4j.util.StringMap;
 
@@ -158,6 +159,7 @@ public class RingBufferLogEventTranslator implements EventTranslator<RingBufferL
             final Clock aClock,
             final NanoClock aNanoClock) {
 
+        final TraceContextProvider traceContext = TraceContextProviderService.getActiveProvider();
         setBasicValues(
                 anAsyncLogger,
                 aLoggerName,
@@ -170,9 +172,9 @@ public class RingBufferLogEventTranslator implements EventTranslator<RingBufferL
                 aLocation,
                 aClock,
                 aNanoClock,
-                TraceContextProviderService.getTraceId(),
-                TraceContextProviderService.getSpanId(),
-                TraceContextProviderService.getTraceFlags());
+                TraceContextProviderService.getTraceId(traceContext),
+                TraceContextProviderService.getSpanId(traceContext),
+                TraceContextProviderService.getTraceFlags(traceContext));
     }
     /**
      * Updates the cached thread values from the current thread.

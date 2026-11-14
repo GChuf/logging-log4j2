@@ -43,6 +43,7 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ReusableMessage;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.apache.logging.log4j.message.TimestampMessage;
+import org.apache.logging.log4j.spi.TraceContextProvider;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.ReadOnlyStringMap;
 import org.apache.logging.log4j.util.StackLocatorUtil;
@@ -135,15 +136,16 @@ public class Log4jLogEvent implements LogEvent {
             this.contextData = createContextData((List<Property>) null);
             this.contextStack = ThreadContext.getImmutableStack();
 
-            final String tId = TraceContextProviderService.getTraceId();
+            final TraceContextProvider traceContext = TraceContextProviderService.getActiveProvider();
+            final String tId = TraceContextProviderService.getTraceId(traceContext);
             if (tId != null) {
                 this.traceId = tId;
             }
-            final String sId = TraceContextProviderService.getSpanId();
+            final String sId = TraceContextProviderService.getSpanId(traceContext);
             if (sId != null) {
                 this.spanId = sId;
             }
-            final String flags = TraceContextProviderService.getTraceFlags();
+            final String flags = TraceContextProviderService.getTraceFlags(traceContext);
             if (flags != null) {
                 this.traceFlags = flags;
             }
@@ -470,9 +472,7 @@ public class Log4jLogEvent implements LogEvent {
                 null, // StackTraceElement source
                 CLOCK, //
                 nanoClock.nanoTime(),
-                TraceContextProviderService.getTraceId(),
-                TraceContextProviderService.getSpanId(),
-                TraceContextProviderService.getTraceFlags());
+                TraceContextProviderService.getActiveProvider());
     }
 
     /**
@@ -510,9 +510,7 @@ public class Log4jLogEvent implements LogEvent {
                 source, // StackTraceElement source
                 CLOCK, //
                 nanoClock.nanoTime(),
-                TraceContextProviderService.getTraceId(),
-                TraceContextProviderService.getSpanId(),
-                TraceContextProviderService.getTraceFlags());
+                TraceContextProviderService.getActiveProvider());
     }
 
     /**
@@ -675,6 +673,46 @@ public class Log4jLogEvent implements LogEvent {
         final long millis =
                 message instanceof TimestampMessage ? ((TimestampMessage) message).getTimestamp() : timestampMillis;
         instant.initFromEpochMilli(millis, nanoOfMillisecond);
+    }
+
+    /**
+     * Takes the trace context provider instead of the three trace values, so that the public constructors look the
+     * provider up once per event.
+     */
+    private Log4jLogEvent(
+            final String loggerName,
+            final Marker marker,
+            final String loggerFQCN,
+            final Level level,
+            final Message message,
+            final Throwable thrown,
+            final StringMap contextData,
+            final ThreadContext.ContextStack contextStack,
+            final long threadId,
+            final String threadName,
+            final int threadPriority,
+            final StackTraceElement source,
+            final Clock clock,
+            final long nanoTime,
+            final TraceContextProvider traceContext) {
+        this(
+                loggerName,
+                marker,
+                loggerFQCN,
+                level,
+                message,
+                thrown,
+                contextData,
+                contextStack,
+                threadId,
+                threadName,
+                threadPriority,
+                source,
+                clock,
+                nanoTime,
+                TraceContextProviderService.getTraceId(traceContext),
+                TraceContextProviderService.getSpanId(traceContext),
+                TraceContextProviderService.getTraceFlags(traceContext));
     }
 
     private Log4jLogEvent(

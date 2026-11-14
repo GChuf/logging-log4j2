@@ -108,6 +108,54 @@ public final class TraceContextProviderService {
         }
     }
 
+    /*
+     * The following overloads let callers that need all three values for one log event look up the provider once,
+     * with getActiveProvider(), instead of once per value. Each lookup reads the system properties, which on Java 8
+     * takes a JVM-wide lock, so three lookups per event contend heavily when many threads log.
+     */
+
+    /**
+     * Returns the trace ID from the given provider.
+     *
+     * @param provider a provider obtained from {@link #getActiveProvider()}
+     * @return the trace ID, or {@code null} if there is none or the provider fails
+     */
+    public static String getTraceId(final TraceContextProvider provider) {
+        try {
+            return provider.getTraceId();
+        } catch (final Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the span ID from the given provider.
+     *
+     * @param provider a provider obtained from {@link #getActiveProvider()}
+     * @return the span ID, or {@code null} if there is none or the provider fails
+     */
+    public static String getSpanId(final TraceContextProvider provider) {
+        try {
+            return provider.getSpanId();
+        } catch (final Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the trace flags from the given provider.
+     *
+     * @param provider a provider obtained from {@link #getActiveProvider()}
+     * @return the trace flags, or {@code null} if there are none or the provider fails
+     */
+    public static String getTraceFlags(final TraceContextProvider provider) {
+        try {
+            return provider.getTraceFlags();
+        } catch (final Throwable t) {
+            return null;
+        }
+    }
+
     private static final class NoOpTraceContextProvider implements TraceContextProvider {
         static final NoOpTraceContextProvider INSTANCE = new NoOpTraceContextProvider();
 
