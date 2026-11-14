@@ -61,7 +61,14 @@ class ParameterFormatterTest {
         "3,0:2:4,false,{}{}{}",
         "4,0:2:4:8,false,{}{}{}aa{}",
         "4,0:2:4:10,false,{}{}{}a{]b{}",
-        "5,0:2:4:7:10,false,{}{}{}a{}b{}"
+        "5,0:2:4:7:10,false,{}{}{}a{}b{}",
+        "0,,false,a{",
+        "0,,false,}{",
+        "1,1,false,{{}",
+        "1,1,false,{{}}",
+        "1,1,false,}{}",
+        "2,0:3,false,{}{{}",
+        "1,17,false,Processing order {}"
     })
     void test_pattern_analysis(
             final int placeholderCount,
@@ -77,6 +84,24 @@ class ParameterFormatterTest {
             assertThat(analysis.placeholderCharIndices).startsWith(placeholderCharIndices);
             assertThat(analysis.escapedCharFound).isEqualTo(escapedPlaceholderFound);
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // pattern, argCount, placeholderCount, stored placeholder indices
+        "'{} {} {}',1,3,0",
+        "'{} {} {}',-1,3,0:3:6",
+        "'\\\\{} {} {}',1,3,2",
+        "'\\\\{} {} {}',-1,3,2:5:8"
+    })
+    void pattern_analysis_counts_placeholders_beyond_argCount(
+            final String pattern, final int argCount, final int placeholderCount, final String indicesString) {
+        final MessagePatternAnalysis analysis = ParameterFormatter.analyzePattern(pattern, argCount);
+        assertThat(analysis.placeholderCount).isEqualTo(placeholderCount);
+        final int[] indices = Arrays.stream(indicesString.split(":"))
+                .mapToInt(Integer::parseInt)
+                .toArray();
+        assertThat(analysis.placeholderCharIndices).startsWith(indices);
     }
 
     @ParameterizedTest

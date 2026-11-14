@@ -128,10 +128,33 @@ final class ParameterFormatter {
             return;
         }
 
-        // Count `{}` occurrences that is not escaped, i.e., not `\`-prefixed
-        boolean escaped = false;
         analysis.placeholderCount = 0;
         analysis.escapedCharFound = false;
+
+        // Fast path for the common case of a pattern without escapes: locate `{` with `String.indexOf()`,
+        // which modern JREs implement as a vectorized intrinsic, instead of inspecting every character.
+        if (pattern.indexOf(ESCAPE_CHAR) < 0) {
+            int i = pattern.indexOf(DELIM_START);
+            while (i >= 0 && i < l - 1) {
+                if (pattern.charAt(i + 1) == DELIM_STOP) {
+                    if (argCount < 0 || analysis.placeholderCount < argCount) {
+                        analysis.ensurePlaceholderCharIndicesCapacity(argCount);
+                        analysis.placeholderCharIndices[analysis.placeholderCount++] = i;
+                    }
+                    // `argCount` is exceeded, skip storing the index
+                    else {
+                        analysis.placeholderCount++;
+                    }
+                    i = pattern.indexOf(DELIM_START, i + 2);
+                } else {
+                    i = pattern.indexOf(DELIM_START, i + 1);
+                }
+            }
+            return;
+        }
+
+        // Count `{}` occurrences that is not escaped, i.e., not `\`-prefixed
+        boolean escaped = false;
         for (int i = 0; i < (l - 1); i++) {
             final char c = pattern.charAt(i);
             if (c == ESCAPE_CHAR) {
