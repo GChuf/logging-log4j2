@@ -55,3 +55,21 @@ java -cp target/log4j-perf-test-*-uber.jar org.openjdk.jmh.Main \
   -rf json -rff log4j-perf-test/target/JsonTemplateLayoutBenchmarkResult.json \
   ".*JsonTemplateLayoutBenchmark.*"
 ----
+
+== File and console throughput
+
+`FileAndConsoleThroughput` is a standalone (non-JMH) harness that measures how many lines and MiB synchronous Log4j writes per minute to a file and to the console.
+It covers four call styles: a plain string, a `{}` parameter with a `String` argument, a `{}` parameter with an `int` argument, and string concatenation with `+`.
+Each scenario runs in a fresh JVM, with a warm-up phase before the measurement.
+The results are printed to *stderr*, so you can redirect stdout (where the console appender writes) without losing them:
+
+[source,bash]
+----
+java -cp target/log4j-perf-test-*-uber.jar \
+  org.apache.logging.log4j.perf.throughput.FileAndConsoleThroughput \
+  --duration 60 --warmup 15 > /dev/null
+----
+
+Run it without the redirect to measure a real terminal instead.
+Other options are `--targets file,console`, `--scenarios plain,param-string,param-int,concat`, `--immediate-flush false`, `--pattern <pattern>`, `--dir <dir>`, `--keep-files` and `--no-fork`.
+See the class Javadoc for details.
