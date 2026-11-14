@@ -591,6 +591,9 @@ public class RollingFileManager extends FileManager {
         getPatternProcessor().setPrevFileTime(prevFileTime.getTime());
         getPatternProcessor().setCurrentFileTime(prevRollTime.getTime());
         rollover();
+        // The new file belongs to the period that starts at prevRollTime.
+        // Name rollovers within that period (for example, size-based ones) after it.
+        getPatternProcessor().setPrevFileTime(prevRollTime.getTime());
     }
 
     public synchronized void rollover() {
