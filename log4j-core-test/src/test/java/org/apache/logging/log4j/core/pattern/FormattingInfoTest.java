@@ -19,6 +19,8 @@ package org.apache.logging.log4j.core.pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Testing FormattingInfo.
@@ -54,5 +56,30 @@ class FormattingInfoTest {
         formattingInfo.format(31, message);
 
         assertEquals("2015-03-09 11:49:28,295; INFO  org.a", message.toString());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // value, minLength: no padding, short padding, exactly one chunk of 8, and more than one chunk
+        "ERROR,5",
+        "INFO,5",
+        "X,5",
+        "X,9",
+        "INFO,12",
+        "X,17",
+        "X,30"
+    })
+    void testFormatLeftAlignedPaddingGivenFieldStart(final String value, final int minLength) {
+        final String prefix = "2015-03-09 11:49:28,295; ";
+        final StringBuilder message = new StringBuilder(prefix).append(value);
+
+        final FormattingInfo formattingInfo = new FormattingInfo(true, minLength, Integer.MAX_VALUE, true);
+        formattingInfo.format(prefix.length(), message);
+
+        final StringBuilder expected = new StringBuilder(prefix).append(value);
+        while (expected.length() < prefix.length() + minLength) {
+            expected.append(' ');
+        }
+        assertEquals(expected.toString(), message.toString());
     }
 }
