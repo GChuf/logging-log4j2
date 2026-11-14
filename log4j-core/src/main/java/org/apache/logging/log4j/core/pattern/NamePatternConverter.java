@@ -16,6 +16,8 @@
  */
 package org.apache.logging.log4j.core.pattern;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.logging.log4j.util.PerformanceSensitive;
 
 /**
@@ -23,10 +25,26 @@ import org.apache.logging.log4j.util.PerformanceSensitive;
  */
 @PerformanceSensitive("allocation")
 public abstract class NamePatternConverter extends LogEventPatternConverter {
+
+    /**
+     * Maximum number of distinct names whose abbreviation is cached.
+     * <p>
+     * Logger and class names form a small, fixed set in most applications, so the cache normally holds every name.
+     * Names seen after the cache is full are abbreviated on every call, like without a cache, so neither memory nor
+     * allocation grows without bound when an application creates logger names dynamically.
+     * </p>
+     */
+    static final int MAX_CACHED_ABBREVIATIONS = 4096;
+
     /**
      * Abbreviator.
      */
     private final NameAbbreviator abbreviator;
+
+    /**
+     * Abbreviated names keyed by the original name, or {@code null} if the abbreviator does not change the name.
+     */
+    private final ConcurrentMap<String, String> abbreviations;
 
     /**
      * Constructor.
@@ -43,6 +61,7 @@ public abstract class NamePatternConverter extends LogEventPatternConverter {
         } else {
             abbreviator = NameAbbreviator.getDefaultAbbreviator();
         }
+        abbreviations = abbreviator == NameAbbreviator.getDefaultAbbreviator() ? null : new ConcurrentHashMap<>();
     }
 
     /**
@@ -52,6 +71,22 @@ public abstract class NamePatternConverter extends LogEventPatternConverter {
      * @param destination the StringBuilder to write to
      */
     protected final void abbreviate(final String original, final StringBuilder destination) {
-        abbreviator.abbreviate(original, destination);
+        if (abbreviations == null || original == null) {
+            abbreviator.abbreviate(original, destination);
+            return;
+        }
+        final String abbreviation = abbreviations.get(original);
+        if (abbreviation != null) {
+            destination.append(abbreviation);
+        } else if (abbreviations.size() < MAX_CACHED_ABBREVIATIONS) {
+            // Allocates only once per distinct name
+            final StringBuilder builder = new StringBuilder(original.length());
+            abbreviator.abbreviate(original, builder);
+            final String computed = builder.toString();
+            abbreviations.putIfAbsent(original, computed);
+            destination.append(computed);
+        } else {
+            abbreviator.abbreviate(original, destination);
+        }
     }
 }
