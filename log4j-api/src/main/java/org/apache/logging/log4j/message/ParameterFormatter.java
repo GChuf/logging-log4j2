@@ -305,17 +305,23 @@ final class ParameterFormatter {
             final MessagePatternAnalysis analysis) {
 
         // Format each argument and the text preceding it
+        // (empty texts are skipped, since `StringBuilder.append(CharSequence, int, int)` is not free even then)
         int precedingTextStartIndex = 0;
         final int argLimit = Math.min(analysis.placeholderCount, argCount);
         for (int argIndex = 0; argIndex < argLimit; argIndex++) {
             final int placeholderCharIndex = analysis.placeholderCharIndices[argIndex];
-            buffer.append(pattern, precedingTextStartIndex, placeholderCharIndex);
+            if (placeholderCharIndex > precedingTextStartIndex) {
+                buffer.append(pattern, precedingTextStartIndex, placeholderCharIndex);
+            }
             recursiveDeepToString(args[argIndex], buffer);
             precedingTextStartIndex = placeholderCharIndex + 2;
         }
 
         // Format the last trailing text
-        buffer.append(pattern, precedingTextStartIndex, pattern.length());
+        final int patternLength = pattern.length();
+        if (precedingTextStartIndex < patternLength) {
+            buffer.append(pattern, precedingTextStartIndex, patternLength);
+        }
     }
 
     private static void formatMessageContainingEscapes(
