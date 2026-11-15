@@ -25,6 +25,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.util.Integers;
 import org.apache.logging.log4j.core.util.Patterns;
+import org.apache.logging.log4j.spi.StandardLevel;
 import org.apache.logging.log4j.util.PerformanceSensitive;
 
 /**
@@ -125,6 +126,30 @@ public class LevelPatternConverter extends LogEventPatternConverter {
     }
 
     /**
+     * Appends the text of the given level, like {@link #format(LogEvent, StringBuilder)} does for the level of an event.
+     *
+     * @param level a level
+     * @param output the buffer to append to
+     */
+    void formatLevel(final Level level, final StringBuilder output) {
+        throw new UnsupportedOperationException("Overridden by subclasses");
+    }
+
+    /**
+     * Creates a converter writing the output of this converter with the given formatting info already applied.
+     * <p>
+     * The formatted text of each standard level is computed once, so formatting an event only appends a string
+     * instead of formatting it and then padding or truncating it.
+     * </p>
+     *
+     * @param formattingInfo the formatting info to apply, for example, a minimum width
+     * @return a converter whose output needs no further formatting
+     */
+    LogEventPatternConverter withFormattingInfo(final FormattingInfo formattingInfo) {
+        return new FormattedLevelPatternConverter(this, formattingInfo);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -145,6 +170,11 @@ public class LevelPatternConverter extends LogEventPatternConverter {
         public void format(final LogEvent event, final StringBuilder output) {
             output.append(event.getLevel());
         }
+
+        @Override
+        void formatLevel(final Level level, final StringBuilder output) {
+            output.append(level);
+        }
     }
 
     private static final class LevelMapLevelPatternConverter extends LevelPatternConverter {
@@ -161,6 +191,92 @@ public class LevelPatternConverter extends LogEventPatternConverter {
         @Override
         public void format(final LogEvent event, final StringBuilder output) {
             output.append(levelMap.get(event.getLevel()));
+        }
+
+        @Override
+        void formatLevel(final Level level, final StringBuilder output) {
+            output.append(levelMap.get(level));
+        }
+    }
+
+    /**
+     * Writes the output of another level converter with a {@link FormattingInfo} already applied.
+     */
+    private static final class FormattedLevelPatternConverter extends LevelPatternConverter {
+
+        /**
+         * The standard levels, indexed by the ordinal of their {@link StandardLevel}.
+         */
+        private static final Level[] STANDARD_LEVELS = createStandardLevels();
+
+        private final LevelPatternConverter converter;
+
+        private final FormattingInfo formattingInfo;
+
+        /**
+         * The formatted text of each level in {@link #STANDARD_LEVELS}, at the same index.
+         */
+        private final String[] formattedStandardLevels;
+
+        private FormattedLevelPatternConverter(
+                final LevelPatternConverter converter, final FormattingInfo formattingInfo) {
+            this.converter = converter;
+            this.formattingInfo = formattingInfo;
+            this.formattedStandardLevels = new String[STANDARD_LEVELS.length];
+            final StringBuilder buffer = new StringBuilder();
+            for (int i = 0; i < STANDARD_LEVELS.length; i++) {
+                buffer.setLength(0);
+                converter.formatLevel(STANDARD_LEVELS[i], buffer);
+                formattingInfo.format(0, buffer);
+                formattedStandardLevels[i] = buffer.toString();
+            }
+        }
+
+        private static Level[] createStandardLevels() {
+            final StandardLevel[] standardLevels = StandardLevel.values();
+            final Level[] levels = new Level[standardLevels.length];
+            for (final StandardLevel standardLevel : standardLevels) {
+                levels[standardLevel.ordinal()] = Level.getLevel(standardLevel.name());
+            }
+            return levels;
+        }
+
+        // NOTE: This method and the ones it calls are kept within the 35-byte `MaxInlineSize`,
+        // so the JIT inlines them even where it does not consider the call hot.
+        @Override
+        public void format(final LogEvent event, final StringBuilder output) {
+            final String formattedLevel = getFormattedStandardLevel(event.getLevel());
+            if (formattedLevel != null) {
+                output.append(formattedLevel);
+            } else {
+                formatCustomLevel(event, output);
+            }
+        }
+
+        private String getFormattedStandardLevel(final Level level) {
+            if (level != null) {
+                final int index = level.getStandardLevel().ordinal();
+                if (STANDARD_LEVELS[index] == level) {
+                    return formattedStandardLevels[index];
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Formats a level that is not a standard one, on each call.
+         */
+        private void formatCustomLevel(final LogEvent event, final StringBuilder output) {
+            final int start = output.length();
+            converter.format(event, output);
+            formattingInfo.format(start, output);
+        }
+
+        @Override
+        void formatLevel(final Level level, final StringBuilder output) {
+            final int start = output.length();
+            converter.formatLevel(level, output);
+            formattingInfo.format(start, output);
         }
     }
 }

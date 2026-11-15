@@ -33,10 +33,22 @@ public class PatternFormatter {
     private final FormattingInfo field;
     private final boolean skipFormattingInfo;
 
+    /**
+     * Writes the output of {@link #converter} with {@link #field} already applied, or {@code null} if not supported.
+     * <p>
+     * Level converters support this: there are few levels, so their padded or truncated texts (e.g. for
+     * {@code %-5level}) can be computed up front.
+     * </p>
+     */
+    private final LogEventPatternConverter formattedConverter;
+
     public PatternFormatter(final LogEventPatternConverter converter, final FormattingInfo field) {
         this.converter = converter;
         this.field = field;
         this.skipFormattingInfo = field == FormattingInfo.getDefault();
+        this.formattedConverter = !skipFormattingInfo && converter instanceof LevelPatternConverter
+                ? ((LevelPatternConverter) converter).withFormattingInfo(field)
+                : null;
     }
 
     public void format(final LogEvent event, final StringBuilder buf) {
@@ -47,7 +59,19 @@ public class PatternFormatter {
         }
     }
 
+    // NOTE: Keep this method within the 35-byte `MaxInlineSize`: it runs for a fraction of the formatters only,
+    // so the JIT may not consider it hot enough to inline larger methods.
     private void formatWithInfo(final LogEvent event, final StringBuilder buf) {
+        if (formattedConverter != null) {
+            // Kept apart from the call in `format()`, which sees every converter type of the layout:
+            // this call site usually sees a single type, so the JIT can inline it.
+            formattedConverter.format(event, buf);
+        } else {
+            formatThenApplyInfo(event, buf);
+        }
+    }
+
+    private void formatThenApplyInfo(final LogEvent event, final StringBuilder buf) {
         final int startField = buf.length();
         converter.format(event, buf);
         field.format(startField, buf);
