@@ -36,7 +36,16 @@ public class AppenderControl extends AbstractFilterable {
      */
     static final AppenderControl[] EMPTY_ARRAY = {};
 
-    private final ThreadLocal<AppenderControl> recursive = new ThreadLocal<>();
+    /**
+     * Holds {@code true} while the current thread is inside {@link #callAppender(LogEvent)}.
+     * <p>
+     * A mutable holder needs a single thread-local lookup per call, where setting and clearing a thread-local value
+     * needs three (a get and two sets).
+     * The holder is a JDK type, so the thread-local value does not pin the Log4j class loader.
+     * </p>
+     */
+    private final ThreadLocal<boolean[]> recursive = ThreadLocal.withInitial(() -> new boolean[1]);
+
     private final Appender appender;
     private final Level level;
     private final int intLevel;
@@ -82,14 +91,14 @@ public class AppenderControl extends AbstractFilterable {
      * @param event The event to process.
      */
     public void callAppender(final LogEvent event) {
-        if (shouldSkip(event)) {
+        if (isFilteredByAppenderControl(event) || isFilteredByLevel(event)) {
             return;
         }
-        callAppenderPreventRecursion(event);
-    }
-
-    private boolean shouldSkip(final LogEvent event) {
-        return isFilteredByAppenderControl(event) || isFilteredByLevel(event) || isRecursiveCall();
+        final boolean[] active = recursive.get();
+        if (isRecursiveCall(active)) {
+            return;
+        }
+        callAppenderPreventRecursion(event, active);
     }
 
     @PerformanceSensitive
@@ -104,8 +113,8 @@ public class AppenderControl extends AbstractFilterable {
     }
 
     @PerformanceSensitive
-    private boolean isRecursiveCall() {
-        if (recursive.get() != null) {
+    private boolean isRecursiveCall(final boolean[] active) {
+        if (active[0]) {
             appenderErrorHandlerMessage("Recursive call to appender ");
             return true;
         }
@@ -118,12 +127,12 @@ public class AppenderControl extends AbstractFilterable {
         return result;
     }
 
-    private void callAppenderPreventRecursion(final LogEvent event) {
+    private void callAppenderPreventRecursion(final LogEvent event, final boolean[] active) {
+        active[0] = true;
         try {
-            recursive.set(this);
             callAppender0(event);
         } finally {
-            recursive.set(null);
+            active[0] = false;
         }
     }
 
