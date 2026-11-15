@@ -2851,13 +2851,13 @@ public abstract class AbstractLogger implements ExtendedLogger, LocationAwareLog
             final StackTraceElement location,
             final Message message,
             final Throwable throwable) {
+        final int[] recursionDepth = incrementRecursionDepth();
         try {
-            incrementRecursionDepth();
             log(level, marker, fqcn, location, message, throwable);
         } catch (Throwable ex) {
             handleLogMessageException(ex, fqcn, message);
         } finally {
-            decrementRecursionDepth();
+            decrementRecursionDepth(recursionDepth);
             ReusableMessageFactory.release(message);
         }
     }
@@ -2909,7 +2909,7 @@ public abstract class AbstractLogger implements ExtendedLogger, LocationAwareLog
     }
 
     @PerformanceSensitive
-    // NOTE: This is a hot method. Current implementation compiles to 33 bytes of byte code.
+    // NOTE: This is a hot method. Current implementation compiles to 35 bytes of byte code.
     // This is within the 35 byte MaxInlineSize threshold. Modify with care!
     private void logMessageTrackRecursion(
             final String fqcn,
@@ -2917,11 +2917,12 @@ public abstract class AbstractLogger implements ExtendedLogger, LocationAwareLog
             final Marker marker,
             final Message message,
             final Throwable throwable) {
+        // The holder is passed on to save a second thread-local lookup when decrementing
+        final int[] recursionDepth = incrementRecursionDepth(); // LOG4J2-1518, LOG4J2-2031
         try {
-            incrementRecursionDepth(); // LOG4J2-1518, LOG4J2-2031
-            tryLogMessage(fqcn, getLocation(fqcn), level, marker, message, throwable);
+            tryLogMessage(fqcn, level, marker, message, throwable);
         } finally {
-            decrementRecursionDepth();
+            decrementRecursionDepth(recursionDepth);
         }
     }
 
@@ -2934,12 +2935,20 @@ public abstract class AbstractLogger implements ExtendedLogger, LocationAwareLog
         return result;
     }
 
-    private static void incrementRecursionDepth() {
-        getRecursionDepthHolder()[0]++;
+    /**
+     * Increments the recursion depth of the current thread.
+     *
+     * @return the holder of the current thread's recursion depth, to be passed to
+     * {@link #decrementRecursionDepth(int[])}, which saves a second thread-local lookup
+     */
+    private static int[] incrementRecursionDepth() {
+        final int[] recursionDepth = getRecursionDepthHolder();
+        recursionDepth[0]++;
+        return recursionDepth;
     }
 
-    private static void decrementRecursionDepth() {
-        final int newDepth = --getRecursionDepthHolder()[0];
+    private static void decrementRecursionDepth(final int[] recursionDepth) {
+        final int newDepth = --recursionDepth[0];
         if (newDepth < 0) {
             throw new IllegalStateException("Recursion depth became negative: " + newDepth);
         }
@@ -2957,15 +2966,16 @@ public abstract class AbstractLogger implements ExtendedLogger, LocationAwareLog
     }
 
     @PerformanceSensitive
-    // NOTE: This is a hot method. Current implementation compiles to 26 bytes of byte code.
+    // NOTE: This is a hot method. Current implementation compiles to 35 bytes of byte code.
     // This is within the 35 byte MaxInlineSize threshold. Modify with care!
     private void tryLogMessage(
             final String fqcn,
-            final StackTraceElement location,
             final Level level,
             final Marker marker,
             final Message message,
             final Throwable throwable) {
+        // Outside the `try` block: exceptions thrown by `getLocation()` are not suppressed
+        final StackTraceElement location = getLocation(fqcn);
         try {
             log(level, marker, fqcn, location, message, throwable);
         } catch (final Throwable t) {
